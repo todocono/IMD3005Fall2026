@@ -12,9 +12,6 @@
 
 import processing.sound.*;
 
-int SPEED_GRAPH = 5000; //constant for the plot
-
-
 AudioIn microphone;     // only ONE mic
 FFT fft;                // and only ONE analysis
 int bands = 512;        // how many small bands the FFT makes
@@ -25,6 +22,16 @@ int filter = 0;  //start with no filter
 int LOW = 850;   //the limits of the bands, in Hz
 int HIGH = 1500;
 float energyAll, energyBand;
+
+//these are the new variables and const I used, compared to ex10
+float whistleSmooth, pauseSmooth, whistleMeter;
+int whistling, lastWhistle;
+float EASING_SIGNAL = 0.1;
+float EASING_EVENT = 0.01;
+float TRIGGER = 0.6;
+int MIN_PAUSE = 100;
+float QUIET_LEVEL = 0.01;
+
 
 
 void setup() {
@@ -49,10 +56,11 @@ void draw() {
     total_energy += spectrum[i];
   }
 
-  float lowPass_energy = 0;
-  for (int i = 1; i < LOW/binHz; i++) {   // I skip band 0, it is not a sound (DC offset)
-    lowPass_energy += spectrum[i];
-  }
+  // I can use the lowPass to detect if there has been a loud low noise, and reset signal
+  //float lowPass_energy = 0;
+  //for (int i = 1; i < LOW/binHz; i++) {   // I skip band 0, it is not a sound (DC offset)
+  //  lowPass_energy += spectrum[i];
+  //}
 
   float highPass_energy = 0;
   for (int i = (int)(HIGH/binHz); i < bands; i++) {   // I skip band 0, it is not a sound (DC offset)
@@ -65,30 +73,46 @@ void draw() {
   fill(255);
   text("TOTAL e", width/2, (height-100)/3-50);
   fill(150, 0, 255);
-  x_e = map(lowPass_energy, 0, 0.1, 0, width);
+  x_e = map(highPass_energy, 0, 0.1, 0, width);
   rect(0, (height-100)/3, x_e, (height-100)/3);
   fill(255);
-  text("LOW PASS e with "+LOW+" Hz", width/2, 2*(height-100)/3-50);
+  text("HIGH PASS e with "+LOW+" Hz", width/2, 2*(height-100)/3-50);
+
+
+
+  // 1. smoothing the signal of whistle
+  float whistleNow = 0;
+  if (total_energy > QUIET_LEVEL) { //only if it's not silent
+    whistleNow = highPass_energy / total_energy; //I check the ratio - there are better ways to do this
+  }
+  whistleSmooth += (whistleNow - whistleSmooth) * EASING_SIGNAL;
+
   fill(255, 0, 150);
-  x_e = map(highPass_energy, 0, 0.1, 0, width);
+  x_e = map(whistleSmooth, 0, 1, 0, width);
   rect(0, 2*(height-100)/3, x_e, (height-100)/3);
   fill(255);
-  text("e at HIGH PASS with "+HIGH+" Hz", width/2, (height-100)-50);
+  text("smoothed e at HIGH PASS with "+HIGH+" Hz", width/2, (height-100)-50);
 
 
-  // draw the spectrum, just like the Sound example of FFTspectrum
 
-  for (int i = 0; i < bands; i++) {
-    fill(125, 255, 125);
-    // Draw the rectangles, adjust their height using the scale factor
-    rect(i*binHz, height, binHz, constrain(-spectrum[i]*500, -100, 0));
+  // 2. detect
+  if (whistleSmooth > TRIGGER) {
+    lastWhistle = millis();        // still hearing it
+    if (whistling == 0) {          // 3. lock in: count once per whistle
+      whistling = 1;
+      whistleMeter++;
+    }
+  } else {
+    if (whistling == 1 && millis() - lastWhistle > MIN_PAUSE) {
+      whistling = 0;                 // 4. a long enough pause unlocks it
+    }
+    whistleMeter *= (1 - EASING_EVENT);   // old whistles fade (leaky counter)
   }
-}
 
+  fill(255);
+  text("whistles: " + whistleMeter, width/2, height-130);
+  if (whistling == 1) text("WHISTLING", width/2, height-110);
 
-void keyPressed() {
-  if (key >= '0' && key <= '4') {
-    filter = key - '0';
-  }
-  println(filter);
+  fill(255, 0, 0);
+  if (whistleMeter > 3) text("3 WHISTLES!", width/2, height-50);
 }
