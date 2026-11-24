@@ -1,17 +1,23 @@
 //IMD3005 - Example for Theremin
 //2026/11/24
 
-//Arduino Code
+//Processing Code
 
 import processing.serial.*;
 
+import processing.sound.*;
+
+SinOsc sine;
+
 Serial serialPort;
 
-int NUM_OF_VALUES_FROM_ARDUINO = 1;  /* CHANGE THIS ACCORDING TO YOUR PROJECT */
+int NUM_OF_VALUES_FROM_ARDUINO = 2;  /* CHANGE THIS ACCORDING TO YOUR PROJECT */
 
 /* This array stores values from Arduino */
 int arduino_values[] = new int[NUM_OF_VALUES_FROM_ARDUINO];
 
+
+float pitch, volume;
 
 void setup() {
   size(500, 500);
@@ -22,6 +28,10 @@ void setup() {
   // to in the line below - this should be the same as you're
   // using in the "Port" menu in the Arduino IDE
   serialPort = new Serial(this, "/dev/cu.usbmodem3101", 9600);
+
+  // create and start the sine oscillator.
+  sine = new SinOsc(this);
+  sine.play();
 }
 
 void draw() {
@@ -32,13 +42,28 @@ void draw() {
   // receive the values from Arduino
   getSerialData();
 
+  int p = constrain (arduino_values[0], 0, 30);
+  int v = constrain (arduino_values[1], 0, 30);
   // use the values like this:
-  float x = map(arduino_values[0], 0, 50, 0, 266);
- // float y = map(arduino_values[1], 0, 1023, 0, height);
+  pitch = lerp (pitch, p, 0.1);
+  volume = lerp (volume, v, 0.01);
+  
 
-  rectMode(CENTER);
-  //rect(width/2, height/2, x, y);
-  background(x);
+  rectMode(CORNERS);
+  fill (255, 0, 125);
+  rect(0, height, width/2, map(pitch, 30, 0, 0, height));
+  fill (125, 0, 255);
+  rect(width/2, height, width, map(volume, 30, 0, 0,height) );
+  
+  //I copied this code from the Sound/Examples/SineWave example
+  
+   // Map mouseY from 0.0 to 1.0 for amplitude
+  float amplitude = map(volume, 0, 30, 1.0, 0.0);
+  sine.amp(amplitude);
+
+  // Map mouseX from 20Hz to 1000Hz for frequency  
+  float frequency = map(pitch, 0, 30, 80.0, 1000.0);
+  sine.freq(frequency);
 }
 
 
@@ -51,7 +76,7 @@ void getSerialData() {
   while (serialPort.available() > 0) {
     String in = serialPort.readStringUntil( 10 );  // 10 = '\n'  Linefeed in ASCII
     if (in != null) {
-      print("From Arduino: " + in);
+      //print("From Arduino: " + in);
       String[] serialInArray = split(trim(in), ",");
       if (serialInArray.length == NUM_OF_VALUES_FROM_ARDUINO) {
         for (int i=0; i<serialInArray.length; i++) {
