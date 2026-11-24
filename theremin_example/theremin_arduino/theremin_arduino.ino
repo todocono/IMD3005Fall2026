@@ -1,5 +1,8 @@
 /*
-Example for Theremin
+IMD3005 - Example for Theremin
+2026/11/24
+
+Arduino Code
 
 Using 2 ultrasound sensors, and sending over serial via CSV
 
